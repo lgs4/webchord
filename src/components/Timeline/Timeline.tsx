@@ -127,14 +127,14 @@ export default function Timeline({ audioEngine }: TimelineProps) {
       // Detect loop restart (seamless - no stop/start needed)
       if (isLooping && loopDurationMs > 0 && Math.floor(elapsedMs / loopDurationMs) > Math.floor(playbackRef.current.lastTime / loopDurationMs)) {
         console.log('🔁 Seamless loop restart at', (elapsedMs / 1000).toFixed(2), 's');
-        // Clear scheduled notes so they can be triggered again
+        
+        // FORCE stop all possible timeline notes to prevent lingering
+        for (let midiNote = 0; midiNote < 128; midiNote++) {
+          audioEngine.timelineNoteOff(midiNote);
+        }
+        
+        // Clear all tracking for fresh loop
         scheduledNotes.clear();
-        // Clear clip tracking and stop all active notes for fresh start
-        playbackRef.current.activeClips.forEach((notes) => {
-          notes.forEach(midiNote => {
-            audioEngine.timelineNoteOff(midiNote);
-          });
-        });
         playbackRef.current.activeClips.clear();
         playbackRef.current.timelineNotes.clear();
         playbackRef.current.currentParametersClipId = null;
@@ -280,15 +280,19 @@ export default function Timeline({ audioEngine }: TimelineProps) {
 
     return () => {
       clearInterval(playbackInterval);
-      // Stop all timeline notes when playback ends
-      playbackRef.current.timelineNotes.forEach((_, midiNote) => {
+      
+      // FORCE stop all possible timeline notes (0-127 MIDI range)
+      // This ensures no notes are left playing, even if tracking failed
+      for (let midiNote = 0; midiNote < 128; midiNote++) {
         audioEngine.timelineNoteOff(midiNote);
-      });
+      }
+      
+      // Clear all tracking
       playbackRef.current.timelineNotes.clear();
       playbackRef.current.activeClips.clear();
       playbackRef.current.currentParametersClipId = null;
       playbackRef.current.activeClipsWithParams.clear();
-      console.log('🛑 Playback stopped, all timeline notes off');
+      console.log('🛑 Playback stopped, all timeline notes forcefully stopped (0-127)');
     };
   }, [isPlaying, audioEngine, timeline, patterns, bpm, totalBeats, isLooping]);
 

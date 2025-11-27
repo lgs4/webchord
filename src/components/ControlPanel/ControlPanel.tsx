@@ -47,7 +47,8 @@ export default function ControlPanel({ audioEngine }: ControlPanelProps) {
       audio: { ...state.audio, masterVolume: volume },
     }));
     if (audioEngine) {
-      audioEngine.setMasterVolume(volume);
+      // Only control live session volume, not timeline or master
+      audioEngine.setLiveVolume(volume);
     }
   };
 
