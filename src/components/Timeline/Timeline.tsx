@@ -28,6 +28,7 @@ export default function Timeline({ audioEngine }: TimelineProps) {
   const [totalBeats, setTotalBeats] = useState(32);
   const [isLooping, setIsLooping] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<string>('Random');
+  const [timelineVolume, setTimelineVolume] = useState(0.7); // 70% volume for timeline
   const playbackRef = useRef<{ 
     timelineNotes: Map<number, number>; 
     lastTime: number;
@@ -69,70 +70,79 @@ export default function Timeline({ audioEngine }: TimelineProps) {
     }
   };
 
+  // Update timeline volume when it changes
+  useEffect(() => {
+    if (audioEngine) {
+      audioEngine.setTimelineVolume(timelineVolume);
+      audioEngine.setLiveVolume(0.7); // Keep live at 70% for now
+    }
+  }, [timelineVolume, audioEngine]);
+
   // Playback engine (handles timeline clips)
   useEffect(() => {
     if (!isPlaying || !audioEngine) return;
 
-    // Calculate the end point of the rightmost clip
-    let loopEndBeat = 0;
+    // Calculate the EXACT end point of the rightmost clip using pattern.length (in seconds)
+    let loopEndTime = 0; // in seconds
     timeline.forEach((clip) => {
       const pattern = patterns.find((p) => p.id === clip.patternId);
       if (pattern) {
-        const clipLengthBeats = (pattern.length * bpm) / 60;
-        const clipEndBeat = clip.startTime + clipLengthBeats;
-        loopEndBeat = Math.max(loopEndBeat, clipEndBeat);
+        // pattern.length is already in seconds from the recording
+        const clipStartSeconds = (clip.startTime * 60) / bpm;
+        const clipEndSeconds = clipStartSeconds + pattern.length;
+        loopEndTime = Math.max(loopEndTime, clipEndSeconds);
       }
     });
     
-    // If no clips, use totalBeats as fallback
-    if (loopEndBeat === 0) {
-      loopEndBeat = totalBeats;
-    } else {
-      // Round up to nearest beat for clean loop
-      loopEndBeat = Math.ceil(loopEndBeat);
-    }
+    // Convert to beats for compatibility with existing logic
+    const loopEndBeat = loopEndTime > 0 ? (loopEndTime * bpm) / 60 : totalBeats;
 
     console.log('Starting playback with', timeline.length, 'clips', 
-                isLooping ? `(looping at beat ${loopEndBeat})` : '(one-shot)',
-                `loop end: ${loopEndBeat} beats`);
+                isLooping ? `(looping at ${loopEndTime.toFixed(2)}s / ${loopEndBeat.toFixed(2)} beats)` : '(one-shot)',
+                `loop duration: ${loopEndTime.toFixed(2)}s`);
     
     const startTime = performance.now();
     const beatDuration = (60 / bpm) * 1000; // ms per beat
+    const loopDurationMs = loopEndTime * 1000; // Convert loop duration to milliseconds
     const scheduledNotes = new Set<string>(); // Track already scheduled notes
     playbackRef.current.hasLooped = false;
 
     const playbackInterval = setInterval(() => {
       const elapsedMs = performance.now() - startTime;
-      const elapsedBeats = elapsedMs / beatDuration;
+      
+      // For looping: use modulo to seamlessly loop without stopping
+      const effectiveElapsedMs = isLooping && loopDurationMs > 0 
+        ? elapsedMs % loopDurationMs 
+        : elapsedMs;
+      
+      const elapsedBeats = effectiveElapsedMs / beatDuration;
       
       // Check if we've reached the end and should stop (non-looping mode)
-      if (!isLooping && elapsedBeats >= loopEndBeat) {
-        console.log(`🛑 Timeline reached end at beat ${loopEndBeat} (non-looping mode)`);
+      if (!isLooping && elapsedMs >= loopDurationMs) {
+        console.log(`🛑 Timeline reached end at ${loopEndTime.toFixed(2)}s (non-looping mode)`);
         stopPlayback();
         return;
       }
       
-      const currentBeat = elapsedBeats % loopEndBeat;
-      
-      // Detect loop restart - clear scheduled notes so they can play again
-      if (currentBeat < playbackRef.current.lastTime) {
-        console.log('🔁 Loop detected - clearing state for replay');
-        
-        // Clear scheduled notes to allow re-triggering
+      // Detect loop restart (seamless - no stop/start needed)
+      if (isLooping && loopDurationMs > 0 && Math.floor(elapsedMs / loopDurationMs) > Math.floor(playbackRef.current.lastTime / loopDurationMs)) {
+        console.log('🔁 Seamless loop restart at', (elapsedMs / 1000).toFixed(2), 's');
+        // Clear scheduled notes so they can be triggered again
         scheduledNotes.clear();
-        
-        // Reset clip tracking for parameter reapplication
+        // Clear clip tracking and stop all active notes for fresh start
+        playbackRef.current.activeClips.forEach((notes) => {
+          notes.forEach(midiNote => {
+            audioEngine.timelineNoteOff(midiNote);
+          });
+        });
         playbackRef.current.activeClips.clear();
+        playbackRef.current.timelineNotes.clear();
         playbackRef.current.currentParametersClipId = null;
         playbackRef.current.activeClipsWithParams.clear();
-        playbackRef.current.hasLooped = true;
-        
-        // NOTE: We do NOT clear timelineNotes here or force noteOff all notes
-        // The noteOn handler below will check if a note is already playing
-        // and stop it before re-triggering, preventing overlap without cutting notes prematurely
-        
-        console.log('✅ State cleared, notes will be managed by event handlers');
       }
+      
+      const currentBeat = elapsedBeats;
+      playbackRef.current.lastTime = elapsedMs;
       
       useAppStore.setState((state) => ({
         sequencer: {
@@ -150,9 +160,11 @@ export default function Timeline({ audioEngine }: TimelineProps) {
         const clipLengthBeats = (pattern.length * bpm) / 60;
         const clipEndBeat = clipStartBeat + clipLengthBeats;
         
+        // Check if clip is playing (handle loop wrap-around)
         const isClipPlaying = currentBeat >= clipStartBeat && currentBeat < clipEndBeat;
 
         if (isClipPlaying) {
+          // Calculate relative time within the clip
           const relativeTimeMs = (currentBeat - clipStartBeat) * beatDuration;
           
           // Initialize clip tracking if not exists
@@ -197,23 +209,21 @@ export default function Timeline({ audioEngine }: TimelineProps) {
             const noteKey = `${clip.id}-${note.time}-${note.midiNote}-${note.type}`;
             const timeDiff = Math.abs(relativeTimeMs - note.time);
             
-            if (timeDiff < 20 && !scheduledNotes.has(noteKey)) {
+            // 30ms tolerance window - tight enough to be accurate, loose enough to handle timing jitter
+            if (timeDiff < 30 && !scheduledNotes.has(noteKey)) {
               scheduledNotes.add(noteKey);
               
               if (note.type === 'noteOn') {
-                // Safety check: if note is already playing, stop it first
-                // This handles edge cases where noteOff might have been missed
+                // If note is already playing, stop it first to avoid voice conflicts
                 if (playbackRef.current.timelineNotes.has(note.midiNote)) {
-                  audioEngine.noteOff(note.midiNote, false);
+                  audioEngine.timelineNoteOff(note.midiNote);
                 }
                 
-                audioEngine.noteOn(note.midiNote, note.velocity);
-                // Track which notes this clip is playing
+                audioEngine.timelineNoteOn(note.midiNote, note.velocity);
                 playbackRef.current.activeClips.get(clip.id)?.add(note.midiNote);
                 playbackRef.current.timelineNotes.set(note.midiNote, note.midiNote);
               } else if (note.type === 'noteOff') {
-                audioEngine.noteOff(note.midiNote, false);
-                // Remove from clip tracking
+                audioEngine.timelineNoteOff(note.midiNote);
                 playbackRef.current.activeClips.get(clip.id)?.delete(note.midiNote);
                 playbackRef.current.timelineNotes.delete(note.midiNote);
               }
@@ -225,7 +235,7 @@ export default function Timeline({ audioEngine }: TimelineProps) {
           if (activeNotes && activeNotes.size > 0) {
             console.log(`🔇 Clip ${clip.id} ended, stopping ${activeNotes.size} stuck notes`);
             activeNotes.forEach((midiNote) => {
-              audioEngine.noteOff(midiNote, true);
+              audioEngine.timelineNoteOff(midiNote);
               playbackRef.current.timelineNotes.delete(midiNote);
             });
             activeNotes.clear();
@@ -266,19 +276,19 @@ export default function Timeline({ audioEngine }: TimelineProps) {
       if (scheduledNotes.size > 1000) {
         scheduledNotes.clear();
       }
-
-      playbackRef.current.lastTime = elapsedBeats;
     }, 10);
 
     return () => {
       clearInterval(playbackInterval);
-      // Stop all timeline notes
-      playbackRef.current.timelineNotes.forEach((note) => {
-        audioEngine.noteOff(note, true);
+      // Stop all timeline notes when playback ends
+      playbackRef.current.timelineNotes.forEach((_, midiNote) => {
+        audioEngine.timelineNoteOff(midiNote);
       });
       playbackRef.current.timelineNotes.clear();
       playbackRef.current.activeClips.clear();
-      console.log('Playback stopped');
+      playbackRef.current.currentParametersClipId = null;
+      playbackRef.current.activeClipsWithParams.clear();
+      console.log('🛑 Playback stopped, all timeline notes off');
     };
   }, [isPlaying, audioEngine, timeline, patterns, bpm, totalBeats, isLooping]);
 
@@ -627,6 +637,21 @@ export default function Timeline({ audioEngine }: TimelineProps) {
           >
             🔁 {isLooping ? 'Loop: ON' : 'Loop: OFF'}
           </button>
+          
+          {/* Timeline Volume Control */}
+          <div className="flex items-center gap-2 ml-4 px-3 py-2 bg-slate-700/50 rounded-lg">
+            <span className="text-white text-sm font-semibold">🔊 Timeline:</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={timelineVolume * 100}
+              onChange={(e) => setTimelineVolume(parseInt(e.target.value) / 100)}
+              className="w-24 h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer slider-thumb"
+              title="Timeline volume (independent from live performance)"
+            />
+            <span className="text-slate-300 text-xs font-mono w-8">{Math.round(timelineVolume * 100)}%</span>
+          </div>
         </div>
       </div>
 

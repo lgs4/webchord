@@ -84,6 +84,10 @@ impl Voice {
         self.age
     }
 
+    pub fn is_releasing(&self) -> bool {
+        !self.active && self.envelope.is_active()
+    }
+
     pub fn set_glide_time(&mut self, time_ms: f32) {
         self.glide.set_glide_time(time_ms);
     }

@@ -60,7 +60,7 @@ export default function PatternRecorder({ onPatternCreated }: PatternRecorderPro
 
   const savePattern = () => {
     if (recordedNotes.length === 0) {
-      alert('No notes recorded!');
+      console.warn('⚠️ No notes recorded!');
       return;
     }
 
@@ -109,8 +109,7 @@ export default function PatternRecorder({ onPatternCreated }: PatternRecorderPro
       onPatternCreated(pattern);
     }
 
-    console.log('Pattern saved:', pattern);
-    alert(`Pattern "${pattern.name}" saved! (${patternLength.toFixed(1)}s)`);
+    console.log(`✅ Pattern "${pattern.name}" saved! (${patternLength.toFixed(1)}s, ${recordedNotes.length} notes)`);
   };
 
   const discardRecording = () => {
@@ -124,10 +123,10 @@ export default function PatternRecorder({ onPatternCreated }: PatternRecorderPro
   };
 
   return (
-    <div className="bg-slate-800/80 backdrop-blur-md rounded-lg p-3 border-2 border-slate-700">
-      <div className="flex items-center gap-3">
+    <div className="bg-slate-800/80 backdrop-blur-md rounded-lg p-3 border-2 border-slate-700 overflow-hidden">
+      <div className="flex items-center gap-2 flex-wrap">
         {/* Status Indicator */}
-        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg flex-shrink-0 ${
           isRecording ? 'bg-red-900/50 border-2 border-red-500' : 'bg-slate-900/50 border-2 border-slate-600'
         }`}>
           <span className={`text-lg ${isRecording ? 'animate-pulse' : ''}`}>
@@ -147,14 +146,14 @@ export default function PatternRecorder({ onPatternCreated }: PatternRecorderPro
         {!isRecording ? (
           <button
             onClick={enableRecording}
-            className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg font-bold transition-all shadow-lg text-sm"
+            className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white rounded-lg font-bold transition-all shadow-lg text-sm flex-shrink-0"
           >
             🔴 ARM RECORDING
           </button>
         ) : (
           <button
             onClick={stopRecording}
-            className="px-6 py-2 bg-gradient-to-r from-red-800 to-red-900 hover:from-red-900 hover:to-black text-white rounded-lg font-bold transition-all shadow-lg text-sm animate-pulse"
+            className="px-6 py-2 bg-gradient-to-r from-red-800 to-red-900 hover:from-red-900 hover:to-black text-white rounded-lg font-bold transition-all shadow-lg text-sm animate-pulse flex-shrink-0"
           >
             ⏹ STOP
           </button>
@@ -163,22 +162,31 @@ export default function PatternRecorder({ onPatternCreated }: PatternRecorderPro
         {/* Save/Discard Controls */}
         {!isRecording && recordedNotes.length > 0 && (
           <>
-            <input
-              type="text"
-              placeholder="Pattern name..."
-              value={patternName}
-              onChange={(e) => setPatternName(e.target.value)}
-              className="flex-1 bg-slate-700 text-white border border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-purple-500"
-            />
+            <div className="relative min-w-[120px] flex-1">
+              <input
+                type="text"
+                placeholder="Pattern name..."
+                value={patternName}
+                onChange={(e) => setPatternName(e.target.value)}
+                maxLength={50}
+                className="w-full bg-gradient-to-r from-slate-700 to-slate-600 text-white border-2 border-purple-500/50 rounded-lg px-4 py-2 pr-12 text-sm font-semibold focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 placeholder-slate-400 transition-all shadow-md"
+              />
+              {patternName && (
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-mono pointer-events-none">
+                  {patternName.length}/50
+                </span>
+              )}
+            </div>
             <button
               onClick={savePattern}
-              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition-all text-sm"
+              className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg font-bold transition-all text-sm shadow-lg flex-shrink-0"
             >
               💾 SAVE
             </button>
             <button
               onClick={discardRecording}
-              className="px-3 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-bold transition-all text-sm"
+              className="px-3 py-2 bg-gradient-to-r from-slate-600 to-slate-700 hover:from-slate-700 hover:to-slate-800 text-white rounded-lg font-bold transition-all text-sm shadow-md flex-shrink-0"
+              title="Discard recording"
             >
               🗑
             </button>

@@ -35,8 +35,10 @@ export class WasmAudioEngine {
       this.wasmEngine = new this.wasmModule.AudioEngine();
       console.log('WASM AudioEngine created');
 
-      // Set initial parameters (70% of max volume)
-      this.wasmEngine.set_master_volume(0.7);
+      // Set initial parameters
+      this.wasmEngine.set_master_volume(1.0); // Master at 100%
+      this.wasmEngine.set_timeline_volume(0.7); // Timeline at 70%
+      this.wasmEngine.set_live_volume(0.7); // Live at 70%
       this.wasmEngine.set_waveform(0); // Sine
       this.wasmEngine.set_adsr(0.01, 0.2, 1.0, 0.3); // Attack, Decay, Sustain, Release
       this.wasmEngine.set_filter_cutoff(20000.0);
@@ -136,10 +138,45 @@ export class WasmAudioEngine {
     }
   }
 
+  // Timeline-specific note methods (use separate engine)
+  timelineNoteOn(midiNote: number, velocity: number = 1.0): void {
+    if (this.wasmEngine) {
+      this.wasmEngine.timeline_note_on(midiNote, velocity);
+    }
+  }
+
+  timelineNoteOff(midiNote: number): void {
+    if (this.wasmEngine) {
+      this.wasmEngine.timeline_note_off(midiNote);
+    }
+  }
+
+  stopAllTimelineNotes(): void {
+    if (this.wasmEngine) {
+      console.log('🔇 Stopping all timeline notes');
+      this.wasmEngine.stop_all_timeline_notes();
+    }
+  }
+
+  // Volume controls (separate for timeline and live)
   setMasterVolume(volume: number): void {
     if (this.wasmEngine) {
-      console.log('🔊 Setting volume:', volume);
+      console.log('🔊 Setting master volume:', volume);
       this.wasmEngine.set_master_volume(volume);
+    }
+  }
+
+  setTimelineVolume(volume: number): void {
+    if (this.wasmEngine) {
+      console.log('🔊 Setting timeline volume:', volume);
+      this.wasmEngine.set_timeline_volume(volume);
+    }
+  }
+
+  setLiveVolume(volume: number): void {
+    if (this.wasmEngine) {
+      console.log('🔊 Setting live volume:', volume);
+      this.wasmEngine.set_live_volume(volume);
     }
   }
 
@@ -148,6 +185,7 @@ export class WasmAudioEngine {
       const waveformNames = ['Sine', 'Sawtooth', 'Square', 'Triangle', 'FM', 'Piano'];
       console.log('🎼 Setting waveform:', waveformNames[waveform] || waveform);
       this.wasmEngine.set_waveform(waveform);
+      this.wasmEngine.set_timeline_waveform(waveform); // Also apply to timeline engine
     }
   }
 
@@ -155,6 +193,7 @@ export class WasmAudioEngine {
     if (this.wasmEngine) {
       console.log('📊 Setting ADSR:', { attack, decay, sustain, release });
       this.wasmEngine.set_adsr(attack, decay, sustain, release);
+      this.wasmEngine.set_timeline_adsr(attack, decay, sustain, release); // Also apply to timeline engine
     }
   }
 
@@ -162,6 +201,7 @@ export class WasmAudioEngine {
     if (this.wasmEngine) {
       console.log('🎚️ Setting filter cutoff:', cutoff);
       this.wasmEngine.set_filter_cutoff(cutoff);
+      this.wasmEngine.set_timeline_filter_cutoff(cutoff);
     }
   }
 
@@ -169,24 +209,28 @@ export class WasmAudioEngine {
     if (this.wasmEngine) {
       console.log('🎚️ Setting filter resonance:', resonance);
       this.wasmEngine.set_filter_resonance(resonance);
+      this.wasmEngine.set_timeline_filter_resonance(resonance);
     }
   }
 
   setLFORate(rate: number): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_lfo_rate(rate);
+      this.wasmEngine.set_timeline_lfo_rate(rate);
     }
   }
 
   setLFODepth(depth: number): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_lfo_depth(depth);
+      this.wasmEngine.set_timeline_lfo_depth(depth);
     }
   }
 
   setGlideTime(timeMs: number): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_glide_time(timeMs);
+      this.wasmEngine.set_timeline_glide_time(timeMs);
     }
   }
 
@@ -197,6 +241,7 @@ export class WasmAudioEngine {
   setTremolo(enabled: boolean, rate: number, depth: number): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_tremolo(enabled, rate, depth);
+      this.wasmEngine.set_timeline_tremolo(enabled, rate, depth);
       console.log('🦀 [RUST] Tremolo:', enabled ? 'ON' : 'OFF', 'rate:', rate, 'depth:', depth);
     }
   }
@@ -204,6 +249,7 @@ export class WasmAudioEngine {
   async setReverb(enabled: boolean, roomSize: number, damping: number): Promise<void> {
     if (this.wasmEngine) {
       this.wasmEngine.set_reverb(enabled, roomSize, damping);
+      this.wasmEngine.set_timeline_reverb(enabled, roomSize, damping);
       console.log('🦀 [RUST] Reverb:', enabled ? 'ON' : 'OFF', 'room:', roomSize, 'damping:', damping);
     }
   }
@@ -212,6 +258,7 @@ export class WasmAudioEngine {
     if (this.wasmEngine) {
       const timeMs = time * 1000; // Convert seconds to milliseconds
       this.wasmEngine.set_delay(enabled, timeMs, feedback, mix);
+      this.wasmEngine.set_timeline_delay(enabled, timeMs, feedback, mix);
       console.log('🦀 [RUST] Delay:', enabled ? 'ON' : 'OFF', 'time:', timeMs + 'ms', 'feedback:', feedback, 'mix:', mix);
     }
   }
@@ -223,6 +270,7 @@ export class WasmAudioEngine {
   setLFOToFilter(enabled: boolean): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_lfo_to_filter(enabled);
+      this.wasmEngine.set_timeline_lfo_to_filter(enabled);
       console.log('🦀 [RUST] LFO → Filter modulation:', enabled ? 'ON' : 'OFF');
     }
   }
@@ -230,6 +278,7 @@ export class WasmAudioEngine {
   setLFOWaveform(waveform: number): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_lfo_waveform(waveform);
+      this.wasmEngine.set_timeline_lfo_waveform(waveform);
       console.log('🦀 [RUST] LFO waveform:', waveform);
     }
   }
@@ -237,6 +286,7 @@ export class WasmAudioEngine {
   setFilterMode(mode: number): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_filter_mode(mode);
+      this.wasmEngine.set_timeline_filter_mode(mode);
       console.log('🦀 [RUST] Filter mode:', ['Lowpass', 'Highpass', 'Bandpass'][mode] || mode);
     }
   }
@@ -244,6 +294,7 @@ export class WasmAudioEngine {
   setFilterEnabled(enabled: boolean): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_filter_enabled(enabled);
+      this.wasmEngine.set_timeline_filter_enabled(enabled);
       console.log('🦀 [RUST] Filter:', enabled ? 'ON' : 'OFF');
     }
   }
@@ -251,6 +302,7 @@ export class WasmAudioEngine {
   setDetune(cents: number): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_detune(cents);
+      this.wasmEngine.set_timeline_detune(cents);
       console.log('🦀 [RUST] Detune:', cents, 'cents');
     }
   }
@@ -258,6 +310,7 @@ export class WasmAudioEngine {
   setFlanger(enabled: boolean, rate: number = 0.5, depth: number = 5, feedback: number = 0.5, mix: number = 0.5): void {
     if (this.wasmEngine) {
       this.wasmEngine.set_flanger(enabled, rate, depth, feedback, mix);
+      this.wasmEngine.set_timeline_flanger(enabled, rate, depth, feedback, mix);
       console.log('🦀 [RUST] Flanger:', enabled ? 'ON' : 'OFF');
     }
   }

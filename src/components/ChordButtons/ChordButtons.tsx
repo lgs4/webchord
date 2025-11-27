@@ -424,6 +424,12 @@ export default function ChordButtons({ audioEngine }: ChordButtonsProps) {
   // Keyboard support - using refs to avoid recreating handlers
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore keyboard shortcuts if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return; // Don't interfere with text input
+      }
+
       const key = e.key;
       if (key >= '1' && key <= '7') {
         e.preventDefault(); // Prevent browser shortcuts
@@ -441,6 +447,12 @@ export default function ChordButtons({ audioEngine }: ChordButtonsProps) {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      // Ignore keyboard shortcuts if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return; // Don't interfere with text input
+      }
+
       const key = e.key;
       if (key >= '1' && key <= '7') {
         e.preventDefault();
