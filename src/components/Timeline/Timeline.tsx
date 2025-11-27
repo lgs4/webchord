@@ -171,34 +171,33 @@ export default function Timeline({ audioEngine }: TimelineProps) {
           if (!playbackRef.current.activeClips.has(clip.id)) {
             playbackRef.current.activeClips.set(clip.id, new Set());
             
-            // Apply captured parameters from this pattern (if they exist)
+            // Apply captured parameters ONLY to timeline engine (not live!)
             if (pattern.capturedParameters && playbackRef.current.currentParametersClipId !== clip.id) {
               const params = pattern.capturedParameters;
-              console.log(`🎨 Applying captured parameters from clip: ${clip.id}`);
+              console.log(`🎨 Applying captured parameters to TIMELINE ENGINE ONLY for clip: ${clip.id}`);
               
               // Convert waveform string to number
               const waveformMap: Record<string, number> = {
                 sine: 0, sawtooth: 1, square: 2, triangle: 3, fm: 4, piano: 5,
               };
               
-              audioEngine.setWaveform(waveformMap[params.waveform]);
-              audioEngine.setADSR(params.adsr.attack, params.adsr.decay, params.adsr.sustain, params.adsr.release);
-              audioEngine.setFilterCutoff(params.filter.cutoff);
-              audioEngine.setFilterResonance(params.filter.resonance);
-              audioEngine.setFilterMode(params.filter.mode);
-              audioEngine.setFilterEnabled(params.filter.enabled);
-              audioEngine.setLFORate(params.lfo.rate);
-              audioEngine.setLFODepth(params.lfo.depth);
-              audioEngine.setLFOWaveform(params.lfo.waveform);
-              audioEngine.setLFOToFilter(params.lfo.enabled);
-              audioEngine.setDetune(params.detune);
-              
-              // Effects
-              audioEngine.setGlideTime(params.effects.glide.enabled ? params.effects.glide.time : 0);
-              audioEngine.setTremolo(params.effects.tremolo.enabled, params.effects.tremolo.rate, params.effects.tremolo.depth);
-              audioEngine.setFlanger(params.effects.flanger.enabled, params.effects.flanger.rate, params.effects.flanger.depth, params.effects.flanger.feedback, params.effects.flanger.mix);
-              audioEngine.setDelay(params.effects.delay.enabled, params.effects.delay.time, params.effects.delay.feedback, params.effects.delay.mix);
-              audioEngine.setReverb(params.effects.reverb.enabled, params.effects.reverb.size, params.effects.reverb.damping);
+              // Apply to TIMELINE engine only - DO NOT touch live engine
+              if (audioEngine.wasmEngine) {
+                const wasm = audioEngine.wasmEngine;
+                wasm.set_timeline_waveform(waveformMap[params.waveform]);
+                wasm.set_timeline_adsr(params.adsr.attack, params.adsr.decay, params.adsr.sustain, params.adsr.release);
+                wasm.set_timeline_lfo_rate(params.lfo.rate);
+                wasm.set_timeline_lfo_depth(params.lfo.depth);
+                wasm.set_timeline_lfo_waveform(params.lfo.waveform);
+                wasm.set_timeline_detune(params.detune);
+                
+                // Effects - timeline only
+                wasm.set_timeline_glide_time(params.effects.glide.enabled ? params.effects.glide.time : 0);
+                wasm.set_timeline_tremolo(params.effects.tremolo.enabled, params.effects.tremolo.rate, params.effects.tremolo.depth);
+                wasm.set_timeline_flanger(params.effects.flanger.enabled, params.effects.flanger.rate, params.effects.flanger.depth, params.effects.flanger.feedback, params.effects.flanger.mix);
+                wasm.set_timeline_delay(params.effects.delay.enabled, params.effects.delay.time, params.effects.delay.feedback, params.effects.delay.mix);
+                wasm.set_timeline_reverb(params.effects.reverb.enabled, params.effects.reverb.size, params.effects.reverb.damping);
+              }
               
               playbackRef.current.currentParametersClipId = clip.id;
               playbackRef.current.activeClipsWithParams.add(clip.id);
@@ -242,34 +241,10 @@ export default function Timeline({ audioEngine }: TimelineProps) {
           }
           playbackRef.current.activeClips.delete(clip.id);
           playbackRef.current.activeClipsWithParams.delete(clip.id);
+          playbackRef.current.currentParametersClipId = null;
           
-          // If this was the clip controlling parameters, restore global parameters
-          if (playbackRef.current.currentParametersClipId === clip.id) {
-            console.log('🔄 Restoring global parameters');
-            const currentState = useAppStore.getState();
-            const waveformMap: Record<string, number> = {
-              sine: 0, sawtooth: 1, square: 2, triangle: 3, fm: 4, piano: 5,
-            };
-            
-            audioEngine.setWaveform(waveformMap[currentState.synthesis.waveform]);
-            audioEngine.setADSR(currentState.synthesis.adsr.attack, currentState.synthesis.adsr.decay, currentState.synthesis.adsr.sustain, currentState.synthesis.adsr.release);
-            audioEngine.setFilterCutoff(currentState.synthesis.filter.cutoff);
-            audioEngine.setFilterResonance(currentState.synthesis.filter.resonance);
-            audioEngine.setFilterMode(currentState.synthesis.filter.mode);
-            audioEngine.setFilterEnabled(currentState.synthesis.filter.enabled);
-            audioEngine.setLFORate(currentState.synthesis.lfo.rate);
-            audioEngine.setLFODepth(currentState.synthesis.lfo.depth);
-            audioEngine.setLFOWaveform(currentState.synthesis.lfo.waveform);
-            audioEngine.setLFOToFilter(currentState.synthesis.lfo.enabled);
-            audioEngine.setDetune(currentState.synthesis.detune);
-            audioEngine.setGlideTime(currentState.effects.glide.enabled ? currentState.effects.glide.time : 0);
-            audioEngine.setTremolo(currentState.effects.tremolo.enabled, currentState.effects.tremolo.rate, currentState.effects.tremolo.depth);
-            audioEngine.setFlanger(currentState.effects.flanger.enabled, currentState.effects.flanger.rate, currentState.effects.flanger.depth, currentState.effects.flanger.feedback, currentState.effects.flanger.mix);
-            audioEngine.setDelay(currentState.effects.delay.enabled, currentState.effects.delay.time, currentState.effects.delay.feedback, currentState.effects.delay.mix);
-            audioEngine.setReverb(currentState.effects.reverb.enabled, currentState.effects.reverb.size, currentState.effects.reverb.damping);
-            
-            playbackRef.current.currentParametersClipId = null;
-          }
+          // NOTE: We do NOT restore global parameters because timeline and live engines are separate!
+          // Timeline engine has its own parameters, live engine is never affected
         }
       });
 
@@ -564,7 +539,6 @@ export default function Timeline({ audioEngine }: TimelineProps) {
       synthParams = {
         waveform: artistPresetParams.waveform,
         adsr: artistPresetParams.adsr,
-        filter: artistPresetParams.filter,
         lfo: artistPresetParams.lfo,
         detune: artistPresetParams.detune,
         effects: {
@@ -587,7 +561,6 @@ export default function Timeline({ audioEngine }: TimelineProps) {
       capturedParameters: {
         waveform: synthParams.waveform,
         adsr: synthParams.adsr,
-        filter: synthParams.filter,
         lfo: synthParams.lfo,
         detune: synthParams.detune,
         effects: synthParams.effects,

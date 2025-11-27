@@ -15,12 +15,6 @@ export interface ADSR {
   preset?: 'LONG' | 'SHORT' | 'SWELL' | 'PLUCK' | 'TOUCH' | 'SUSTAIN';
 }
 
-export interface Filter {
-  cutoff: number;
-  resonance: number;
-  mode: number; // 0=lowpass, 1=highpass, 2=bandpass
-  enabled: boolean;
-}
 
 export interface LFO {
   rate: number;
@@ -62,11 +56,10 @@ export interface Pattern {
   // Captured parameters at the time of recording
   capturedParameters?: {
     waveform: WaveformType;
-    adsr: ADSR;
-    filter: Filter;
-    lfo: LFO;
-    detune: number;
-    effects: Effects;
+  adsr: ADSR;
+  lfo: LFO;
+  detune: number;
+  effects: Effects;
   };
 }
 
@@ -129,7 +122,6 @@ export interface AppState {
     voiceCount: number;
     detune: number; // cents
     adsr: ADSR;
-    filter: Filter;
     lfo: LFO;
   };
   
@@ -194,12 +186,6 @@ export const useAppStore = create<AppState>(() => ({
     voiceCount: 4,
     detune: 0,
     adsr: defaultADSR,
-    filter: {
-      cutoff: 20000,
-      resonance: 0.707,
-      mode: 0,
-      enabled: false,
-    },
     lfo: {
       rate: 1.0,
       depth: 0.0,

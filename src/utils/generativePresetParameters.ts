@@ -4,12 +4,11 @@
  * to create a cohesive sonic experience
  */
 
-import { WaveformType, ADSR, Filter, LFO, Effects } from '../store/useAppStore';
+import { WaveformType, ADSR, LFO, Effects } from '../store/useAppStore';
 
 export interface GenerativePresetParameters {
   waveform: WaveformType;
   adsr: ADSR;
-  filter: Filter;
   lfo: LFO;
   detune: number;
   effects: Effects;
@@ -23,14 +22,7 @@ export const GENERATIVE_PRESET_PARAMETERS: { [key: string]: GenerativePresetPara
       decay: 0.3,
       sustain: 0.7,
       release: 0.5,
-    },
-    filter: {
-      cutoff: 3000,
-      resonance: 1.2,
-      mode: 0, // lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 4.0,
       depth: 0.2,
       waveform: 0, // sine
@@ -56,14 +48,7 @@ export const GENERATIVE_PRESET_PARAMETERS: { [key: string]: GenerativePresetPara
       decay: 0.8,
       sustain: 0.6,
       release: 2.5,
-    },
-    filter: {
-      cutoff: 1200,
-      resonance: 0.8,
-      mode: 0, // lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.3,
       depth: 0.4,
       waveform: 0, // sine
@@ -89,14 +74,7 @@ export const GENERATIVE_PRESET_PARAMETERS: { [key: string]: GenerativePresetPara
       decay: 0.15,
       sustain: 0.8,
       release: 0.2,
-    },
-    filter: {
-      cutoff: 5000,
-      resonance: 2.5,
-      mode: 0, // lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 8.0,
       depth: 0.6,
       waveform: 2, // square
@@ -122,14 +100,7 @@ export const GENERATIVE_PRESET_PARAMETERS: { [key: string]: GenerativePresetPara
       decay: 0.4,
       sustain: 0.6,
       release: 0.8,
-    },
-    filter: {
-      cutoff: 2500,
-      resonance: 1.0,
-      mode: 0, // lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 2.5,
       depth: 0.3,
       waveform: 3, // sample & hold
@@ -155,14 +126,7 @@ export const GENERATIVE_PRESET_PARAMETERS: { [key: string]: GenerativePresetPara
       decay: 0.3,
       sustain: 0.5,
       release: 1.5,
-    },
-    filter: {
-      cutoff: 1800,
-      resonance: 0.707,
-      mode: 0, // lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.5,
       depth: 0.15,
       waveform: 1, // triangle
@@ -188,14 +152,7 @@ export const GENERATIVE_PRESET_PARAMETERS: { [key: string]: GenerativePresetPara
       decay: 0.5,
       sustain: 0.8,
       release: 1.0,
-    },
-    filter: {
-      cutoff: 4000,
-      resonance: 1.8,
-      mode: 0, // lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 1.5,
       depth: 0.5,
       waveform: 0, // sine
@@ -221,14 +178,7 @@ export const GENERATIVE_PRESET_PARAMETERS: { [key: string]: GenerativePresetPara
       decay: 0.1 + Math.random() * 1.0,
       sustain: 0.3 + Math.random() * 0.7,
       release: 0.2 + Math.random() * 2.0,
-    },
-    filter: {
-      cutoff: 500 + Math.random() * 8000,
-      resonance: 0.5 + Math.random() * 2.0,
-      mode: Math.floor(Math.random() * 3), // random filter mode
-      enabled: Math.random() > 0.3,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.1 + Math.random() * 10,
       depth: Math.random() * 0.8,
       waveform: Math.floor(Math.random() * 4),
@@ -256,14 +206,7 @@ export const DEFAULT_GENERATIVE_PARAMETERS: GenerativePresetParameters = {
     decay: 0.2,
     sustain: 1.0,
     release: 0.3,
-  },
-  filter: {
-    cutoff: 20000,
-    resonance: 0.707,
-    mode: 0,
-    enabled: false,
-  },
-  lfo: {
+  },  lfo: {
     rate: 1.0,
     depth: 0.0,
     waveform: 0,

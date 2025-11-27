@@ -18,12 +18,6 @@ export interface ArtistPreset {
     sustain: number;
     release: number;
   };
-  filter: {
-    cutoff: number;
-    resonance: number;
-    mode: 0 | 1 | 2; // 0: Lowpass, 1: Highpass, 2: Bandpass
-    enabled: boolean;
-  };
   lfo: {
     rate: number;
     depth: number;
@@ -58,14 +52,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.3,
       sustain: 0.85,
       release: 1.0,
-    },
-    filter: {
-      cutoff: 1500,
-      resonance: 0.3,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.4,
       depth: 200,
       waveform: 0, // Sine
@@ -98,14 +85,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.15,
       sustain: 0.7,
       release: 0.4,
-    },
-    filter: {
-      cutoff: 2500,
-      resonance: 0.6,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 4.8,
       depth: 400,
       waveform: 2, // Square (for sidechain-like pumping)
@@ -138,14 +118,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.25,
       sustain: 0.6,
       release: 0.35,
-    },
-    filter: {
-      cutoff: 3500,
-      resonance: 0.2,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.5,
       depth: 50,
       waveform: 3, // Sample & Hold (for vinyl warble)
@@ -178,14 +151,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.2,
       sustain: 0.75,
       release: 0.4,
-    },
-    filter: {
-      cutoff: 4000,
-      resonance: 0.25,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.4,
       depth: 80,
       waveform: 0, // Sine
@@ -218,14 +184,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.18,
       sustain: 0.7,
       release: 0.3,
-    },
-    filter: {
-      cutoff: 5000,
-      resonance: 0.35,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.6,
       depth: 100,
       waveform: 1, // Triangle
@@ -258,14 +217,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.12,
       sustain: 0.65,
       release: 0.35,
-    },
-    filter: {
-      cutoff: 1800,
-      resonance: 0.75,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 6.0,
       depth: 500,
       waveform: 2, // Square
@@ -298,14 +250,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.3,
       sustain: 0.85,
       release: 0.8,
-    },
-    filter: {
-      cutoff: 2500,
-      resonance: 0.2,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.25,
       depth: 120,
       waveform: 0, // Sine
@@ -338,14 +283,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.25,
       sustain: 0.78,
       release: 0.6,
-    },
-    filter: {
-      cutoff: 3200,
-      resonance: 0.28,
-      mode: 0, // Lowpass
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 0.35,
       depth: 180,
       waveform: 0, // Sine (for gentle modulation)
@@ -378,14 +316,7 @@ export const artistPresets: ArtistPreset[] = [
       decay: 0.1,
       sustain: 0.6,
       release: 0.2,
-    },
-    filter: {
-      cutoff: 4500, // Reduced from 6000 to be less harsh
-      resonance: 0.35,
-      mode: 0, // Changed to Lowpass for warmer chiptune sound
-      enabled: true,
-    },
-    lfo: {
+    },    lfo: {
       rate: 2.5,
       depth: 200, // Reduced from 250 for less extreme modulation
       waveform: 3, // Sample & Hold (for glitchy effects)
@@ -419,14 +350,7 @@ export const defaultPreset: ArtistPreset = {
     decay: 0.2,
     sustain: 1.0,
     release: 0.3,
-  },
-  filter: {
-    cutoff: 20000,
-    resonance: 0.707,
-    mode: 0,
-    enabled: false,
-  },
-  lfo: {
+  },  lfo: {
     rate: 1.0,
     depth: 0.0,
     waveform: 0,

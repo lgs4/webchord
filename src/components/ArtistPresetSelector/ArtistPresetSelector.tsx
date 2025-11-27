@@ -49,7 +49,6 @@ export default function ArtistPresetSelector({ audioEngine }: ArtistPresetSelect
         ...state.synthesis,
         waveform: preset.waveform,
         adsr: preset.adsr,
-        filter: preset.filter,
         lfo: preset.lfo,
         detune: preset.detune,
       },
@@ -74,14 +73,9 @@ export default function ArtistPresetSelector({ audioEngine }: ArtistPresetSelect
     audioEngine.setWaveform(waveformMap[preset.waveform]);
     
     audioEngine.setADSR(preset.adsr.attack, preset.adsr.decay, preset.adsr.sustain, preset.adsr.release);
-    audioEngine.setFilterCutoff(preset.filter.cutoff);
-    audioEngine.setFilterResonance(preset.filter.resonance);
-    audioEngine.setFilterMode(preset.filter.mode);
-    audioEngine.setFilterEnabled(preset.filter.enabled);
     audioEngine.setLFORate(preset.lfo.rate);
     audioEngine.setLFODepth(preset.lfo.depth);
     audioEngine.setLFOWaveform(preset.lfo.waveform);
-    audioEngine.setLFOToFilter(preset.lfo.enabled);
     audioEngine.setDetune(preset.detune);
     
     // Effects
@@ -217,7 +211,6 @@ export default function ArtistPresetSelector({ audioEngine }: ArtistPresetSelect
       capturedParameters: {
         waveform: preset.waveform,
         adsr: preset.adsr,
-        filter: preset.filter,
         lfo: preset.lfo,
         detune: preset.detune,
         effects: {

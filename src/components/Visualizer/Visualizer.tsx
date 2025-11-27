@@ -15,7 +15,6 @@ export default function Visualizer({ audioEngine }: VisualizerProps) {
   const waveform = useAppStore((state) => state.synthesis.waveform);
   const lfoEnabled = useAppStore((state) => state.synthesis.lfo.enabled);
   const lfoRate = useAppStore((state) => state.synthesis.lfo.rate);
-  const filterEnabled = useAppStore((state) => state.synthesis.filter.enabled);
   const tremoloEnabled = useAppStore((state) => state.effects.tremolo.enabled);
   const reverbEnabled = useAppStore((state) => state.effects.reverb.enabled);
   const delayEnabled = useAppStore((state) => state.effects.delay.enabled);
@@ -90,9 +89,6 @@ export default function Visualizer({ audioEngine }: VisualizerProps) {
       } else if (tremoloEnabled) {
         gradient.addColorStop(0, '#fbbf24');
         gradient.addColorStop(1, '#f59e0b');
-      } else if (filterEnabled) {
-        gradient.addColorStop(0, '#06b6d4');
-        gradient.addColorStop(1, '#3b82f6');
       } else {
         gradient.addColorStop(0, '#10b981');
         gradient.addColorStop(1, '#059669');
@@ -149,7 +145,6 @@ export default function Visualizer({ audioEngine }: VisualizerProps) {
       ctx.font = '10px monospace';
       const activeEffects = [];
       if (lfoEnabled) activeEffects.push('LFO');
-      if (filterEnabled) activeEffects.push('FLT');
       if (tremoloEnabled) activeEffects.push('TRM');
       if (reverbEnabled) activeEffects.push('RVB');
       if (delayEnabled) activeEffects.push('DLY');
@@ -164,7 +159,7 @@ export default function Visualizer({ audioEngine }: VisualizerProps) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [audioEngine, waveform, lfoEnabled, lfoRate, filterEnabled, tremoloEnabled, reverbEnabled, delayEnabled]);
+  }, [audioEngine, waveform, lfoEnabled, lfoRate, tremoloEnabled, reverbEnabled, delayEnabled]);
 
   return (
     <div className="bg-slate-800/80 backdrop-blur-md rounded-lg p-2 border-2 border-slate-700 h-full">

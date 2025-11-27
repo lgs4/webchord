@@ -2,12 +2,10 @@ use wasm_bindgen::prelude::*;
 
 mod oscillator;
 mod envelope;
-mod filter;
 mod voice;
 mod lfo;
 mod effects;
 
-use filter::StateVariableFilter;
 use voice::Voice;
 use lfo::Lfo;
 use effects::delay::Delay;
@@ -22,9 +20,6 @@ const MAX_VOICES_PER_ENGINE: usize = 16; // Each engine gets 16 voices
 struct Engine {
     voices: Vec<Voice>,
     lfo: Lfo,
-    filter: StateVariableFilter,
-    filter_mode: u8,
-    filter_enabled: bool,
     delay: Delay,
     reverb: Reverb,
     tremolo: Tremolo,
@@ -33,8 +28,6 @@ struct Engine {
     reverb_enabled: bool,
     tremolo_enabled: bool,
     flanger_enabled: bool,
-    lfo_to_filter: bool,
-    base_filter_cutoff: f32,
     detune_cents: f32,
 }
 
@@ -48,9 +41,6 @@ impl Engine {
         Engine {
             voices,
             lfo: Lfo::new(sample_rate),
-            filter: StateVariableFilter::new(sample_rate),
-            filter_mode: 0,
-            filter_enabled: false,
             delay: Delay::new(sample_rate, 2000.0),
             reverb: Reverb::new(sample_rate),
             tremolo: Tremolo::new(sample_rate),
@@ -59,8 +49,6 @@ impl Engine {
             reverb_enabled: false,
             tremolo_enabled: false,
             flanger_enabled: false,
-            lfo_to_filter: false,
-            base_filter_cutoff: 20000.0,
             detune_cents: 0.0,
         }
     }
@@ -76,22 +64,6 @@ impl Engine {
     fn process_effects(&mut self, buffer: &mut [f32]) {
         for i in 0..buffer.len() {
             let mut sample = buffer[i];
-
-            // Apply LFO modulation to filter cutoff if enabled
-            if self.lfo_to_filter {
-                let lfo_value = self.lfo.process();
-                let modulated_cutoff = self.base_filter_cutoff * (1.0 + lfo_value);
-                self.filter.set_cutoff(modulated_cutoff.clamp(20.0, 20000.0));
-            }
-
-            // Apply filter
-            if self.filter_enabled {
-                sample = match self.filter_mode {
-                    1 => self.filter.process_highpass(sample),
-                    2 => self.filter.process_bandpass(sample),
-                    _ => self.filter.process(sample),
-                };
-            }
 
             // Apply effects chain
             if self.flanger_enabled {
@@ -303,41 +275,6 @@ impl AudioEngine {
         }
     }
 
-    // Live engine filter controls
-    pub fn set_filter_cutoff(&mut self, cutoff: f32) {
-        self.live_engine.base_filter_cutoff = cutoff;
-        self.live_engine.filter.set_cutoff(cutoff);
-    }
-
-    pub fn set_filter_resonance(&mut self, resonance: f32) {
-        self.live_engine.filter.set_resonance(resonance);
-    }
-
-    pub fn set_filter_mode(&mut self, mode: u8) {
-        self.live_engine.filter_mode = mode.min(2);
-    }
-
-    pub fn set_filter_enabled(&mut self, enabled: bool) {
-        self.live_engine.filter_enabled = enabled;
-    }
-
-    // Timeline engine filter controls
-    pub fn set_timeline_filter_cutoff(&mut self, cutoff: f32) {
-        self.timeline_engine.base_filter_cutoff = cutoff;
-        self.timeline_engine.filter.set_cutoff(cutoff);
-    }
-
-    pub fn set_timeline_filter_resonance(&mut self, resonance: f32) {
-        self.timeline_engine.filter.set_resonance(resonance);
-    }
-
-    pub fn set_timeline_filter_mode(&mut self, mode: u8) {
-        self.timeline_engine.filter_mode = mode.min(2);
-    }
-
-    pub fn set_timeline_filter_enabled(&mut self, enabled: bool) {
-        self.timeline_engine.filter_enabled = enabled;
-    }
 
     // Live engine LFO controls
     pub fn set_lfo_rate(&mut self, rate: f32) {
@@ -350,10 +287,6 @@ impl AudioEngine {
 
     pub fn set_lfo_waveform(&mut self, waveform: u8) {
         self.live_engine.lfo.set_waveform(waveform);
-    }
-
-    pub fn set_lfo_to_filter(&mut self, enabled: bool) {
-        self.live_engine.lfo_to_filter = enabled;
     }
 
     // Timeline engine LFO controls
@@ -369,9 +302,6 @@ impl AudioEngine {
         self.timeline_engine.lfo.set_waveform(waveform);
     }
 
-    pub fn set_timeline_lfo_to_filter(&mut self, enabled: bool) {
-        self.timeline_engine.lfo_to_filter = enabled;
-    }
 
     // Live engine detune
     pub fn set_detune(&mut self, cents: f32) {

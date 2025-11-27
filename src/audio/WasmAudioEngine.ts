@@ -3,7 +3,7 @@
 // ALL audio effects are now processed in Rust for maximum performance!
 
 export class WasmAudioEngine {
-  private wasmEngine: any = null;
+  public wasmEngine: any = null; // Made public for direct timeline engine access
   private audioContext: AudioContext | null = null;
   private scriptNode: ScriptProcessorNode | null = null;
   private isInitialized = false;
@@ -41,8 +41,6 @@ export class WasmAudioEngine {
       this.wasmEngine.set_live_volume(0.7); // Live at 70%
       this.wasmEngine.set_waveform(0); // Sine
       this.wasmEngine.set_adsr(0.01, 0.2, 1.0, 0.3); // Attack, Decay, Sustain, Release
-      this.wasmEngine.set_filter_cutoff(20000.0);
-      this.wasmEngine.set_filter_resonance(0.707);
 
       // Create ScriptProcessorNode for audio processing
       // Note: ScriptProcessorNode is deprecated but works everywhere
@@ -197,21 +195,6 @@ export class WasmAudioEngine {
     }
   }
 
-  setFilterCutoff(cutoff: number): void {
-    if (this.wasmEngine) {
-      console.log('🎚️ Setting filter cutoff:', cutoff);
-      this.wasmEngine.set_filter_cutoff(cutoff);
-      this.wasmEngine.set_timeline_filter_cutoff(cutoff);
-    }
-  }
-
-  setFilterResonance(resonance: number): void {
-    if (this.wasmEngine) {
-      console.log('🎚️ Setting filter resonance:', resonance);
-      this.wasmEngine.set_filter_resonance(resonance);
-      this.wasmEngine.set_timeline_filter_resonance(resonance);
-    }
-  }
 
   setLFORate(rate: number): void {
     if (this.wasmEngine) {
@@ -267,13 +250,6 @@ export class WasmAudioEngine {
     console.log('⚠️ Bass Boost not yet implemented in Rust');
   }
 
-  setLFOToFilter(enabled: boolean): void {
-    if (this.wasmEngine) {
-      this.wasmEngine.set_lfo_to_filter(enabled);
-      this.wasmEngine.set_timeline_lfo_to_filter(enabled);
-      console.log('🦀 [RUST] LFO → Filter modulation:', enabled ? 'ON' : 'OFF');
-    }
-  }
 
   setLFOWaveform(waveform: number): void {
     if (this.wasmEngine) {
@@ -283,21 +259,6 @@ export class WasmAudioEngine {
     }
   }
 
-  setFilterMode(mode: number): void {
-    if (this.wasmEngine) {
-      this.wasmEngine.set_filter_mode(mode);
-      this.wasmEngine.set_timeline_filter_mode(mode);
-      console.log('🦀 [RUST] Filter mode:', ['Lowpass', 'Highpass', 'Bandpass'][mode] || mode);
-    }
-  }
-
-  setFilterEnabled(enabled: boolean): void {
-    if (this.wasmEngine) {
-      this.wasmEngine.set_filter_enabled(enabled);
-      this.wasmEngine.set_timeline_filter_enabled(enabled);
-      console.log('🦀 [RUST] Filter:', enabled ? 'ON' : 'OFF');
-    }
-  }
 
   setDetune(cents: number): void {
     if (this.wasmEngine) {

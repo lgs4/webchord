@@ -110,7 +110,6 @@ export default function PatternRecorder({ onPatternCreated }: PatternRecorderPro
       capturedParameters: {
         waveform: currentState.synthesis.waveform,
         adsr: { ...currentState.synthesis.adsr },
-        filter: { ...currentState.synthesis.filter },
         lfo: { ...currentState.synthesis.lfo },
         detune: currentState.synthesis.detune,
         effects: JSON.parse(JSON.stringify(currentState.effects)), // Deep clone
