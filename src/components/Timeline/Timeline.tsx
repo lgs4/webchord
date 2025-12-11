@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '../../store/useAppStore';
-import { Pattern, TimelineClip, RecordedNote } from '../../store/useAppStore';
+import { Pattern, TimelineClip, RecordedNote, RecordedAutomationEvent } from '../../store/useAppStore';
+import { exportArrangementAsJSON, importArrangementFromJSON, exportPatternAsJSON, downloadTextFile } from '../../utils/exportUtils';
 import { WasmAudioEngine } from '../../audio/WasmAudioEngine';
 import { generateChord } from '../../music/chords';
 import { generateProceduralProgression, GENERATIVE_PRESETS, GenerationConfig } from '../../utils/proceduralMusicGenerator';
@@ -29,6 +30,8 @@ export default function Timeline({ audioEngine }: TimelineProps) {
   const [isLooping, setIsLooping] = useState(true);
   const [selectedPreset, setSelectedPreset] = useState<string>('Random');
   const [timelineVolume, setTimelineVolume] = useState(0.7); // 70% volume for timeline
+  const [isExportingAudio, setIsExportingAudio] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'wav' | 'webm'>('wav');
   const playbackRef = useRef<{ 
     timelineNotes: Map<number, number>; 
     lastTime: number;
@@ -204,6 +207,148 @@ export default function Timeline({ audioEngine }: TimelineProps) {
             }
           }
           
+          // Apply recorded automation (preset changes, joystick moves) for this pattern/clip
+          if (pattern.automationEvents && pattern.automationEvents.length > 0) {
+            const wasm = audioEngine.wasmEngine;
+
+            if (wasm) {
+              pattern.automationEvents.forEach((event: RecordedAutomationEvent, index: number) => {
+                const eventKey = `${clip.id}-auto-${event.time}-${event.type}-${index}`;
+                const timeDiff = Math.abs(relativeTimeMs - event.time);
+
+                // 30ms tolerance window, same idea as notes
+                if (timeDiff < 30 && !scheduledNotes.has(eventKey)) {
+                  scheduledNotes.add(eventKey);
+
+                  if (event.type === 'presetChange') {
+                    const data = event.data || {};
+                    // Try to find the artist preset by identity; fall back to index if available
+                    const preset =
+                      artistPresets.find(
+                        (p) =>
+                          p.artist === data.artist &&
+                          p.genre === data.genre &&
+                          p.name === data.name,
+                      ) ||
+                      (typeof data.presetIndex === 'number'
+                        ? artistPresets[data.presetIndex] || null
+                        : null);
+
+                    if (preset) {
+                      const waveformMap: Record<string, number> = {
+                        sine: 0,
+                        sawtooth: 1,
+                        square: 2,
+                        triangle: 3,
+                        fm: 4,
+                        piano: 5,
+                      };
+
+                      // Apply full preset to TIMELINE engine only
+                      wasm.set_timeline_waveform(waveformMap[preset.waveform]);
+                      wasm.set_timeline_adsr(
+                        preset.adsr.attack,
+                        preset.adsr.decay,
+                        preset.adsr.sustain,
+                        preset.adsr.release,
+                      );
+                      wasm.set_timeline_lfo_rate(preset.lfo.rate);
+                      wasm.set_timeline_lfo_depth(preset.lfo.depth);
+                      wasm.set_timeline_lfo_waveform(preset.lfo.waveform);
+                      wasm.set_timeline_detune(preset.detune);
+
+                      // Effects
+                      const fx = preset.effects;
+                      wasm.set_timeline_glide_time(fx.glide.enabled ? fx.glide.time : 0);
+                      wasm.set_timeline_tremolo(
+                        fx.tremolo.enabled,
+                        fx.tremolo.rate,
+                        fx.tremolo.depth,
+                      );
+                      wasm.set_timeline_flanger(
+                        fx.flanger.enabled,
+                        fx.flanger.rate,
+                        fx.flanger.depth,
+                        fx.flanger.feedback,
+                        fx.flanger.mix,
+                      );
+                      wasm.set_timeline_delay(
+                        fx.delay.enabled,
+                        fx.delay.time,
+                        fx.delay.feedback,
+                        fx.delay.mix,
+                      );
+                      wasm.set_timeline_reverb(
+                        fx.reverb.enabled,
+                        fx.reverb.size,
+                        fx.reverb.damping,
+                      );
+                    }
+                  } else if (event.type === 'joystickMove') {
+                    const data = event.data || {};
+                    const x = typeof data.x === 'number' ? data.x : 0;
+                    const y = typeof data.y === 'number' ? data.y : 0;
+
+                    // Mirror the Simple Mode joystick behavior but for TIMELINE engine only
+                    const state = useAppStore.getState();
+
+                    const newDetune = x * 50; // -50..50 cents
+                    const baseReverbMix = state.effects.reverb.mix;
+                    const newReverbMix = Math.max(0, Math.min(1, 0.5 - y * 0.5));
+
+                    wasm.set_timeline_detune(newDetune);
+
+                    if (state.effects.reverb.enabled) {
+                      wasm.set_timeline_reverb(
+                        true,
+                        state.effects.reverb.size,
+                        newReverbMix,
+                      );
+                    }
+
+                    const delayEnabled = state.effects.delay.enabled;
+                    const baseDelayTime = state.effects.delay.time;
+                    const baseDelayMix = state.effects.delay.mix;
+
+                    if (delayEnabled) {
+                      const delayTime = Math.max(0.05, baseDelayTime + y * 0.25);
+                      const delayMix = Math.max(
+                        0,
+                        Math.min(1, baseDelayMix + y * 0.3),
+                      );
+                      wasm.set_timeline_delay(
+                        true,
+                        delayTime,
+                        state.effects.delay.feedback,
+                        delayMix,
+                      );
+                    }
+
+                    const flangerEnabled = state.effects.flanger.enabled;
+                    if (flangerEnabled) {
+                      const baseDepth = state.effects.flanger.depth;
+                      const baseMix = state.effects.flanger.mix;
+                      const depth = Math.max(0, baseDepth + x * 5);
+                      const mix = Math.max(
+                        0,
+                        Math.min(1, baseMix + x * 0.3),
+                      );
+
+                      wasm.set_timeline_flanger(
+                        true,
+                        state.effects.flanger.rate,
+                        depth,
+                        state.effects.flanger.feedback,
+                        mix,
+                      );
+                    }
+                  }
+                }
+              });
+            }
+          }
+
+          // Note playback for this pattern/clip
           pattern.notes.forEach((note) => {
             const noteKey = `${clip.id}-${note.time}-${note.midiNote}-${note.type}`;
             const timeDiff = Math.abs(relativeTimeMs - note.time);
@@ -351,6 +496,112 @@ export default function Timeline({ audioEngine }: TimelineProps) {
         timeline: state.sequencer.timeline.filter((c) => c.id !== clipId),
       },
     }));
+  };
+
+  const handleExportArrangementJSON = () => {
+    const state = useAppStore.getState();
+    const json = exportArrangementAsJSON(state);
+    downloadTextFile(json, `webchord-arrangement-${Date.now()}.json`, 'application/json');
+  };
+
+  const handleImportArrangementJSON = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const json = event.target?.result as string;
+          const imported = importArrangementFromJSON(json);
+          if (!imported) {
+            alert('❌ Invalid arrangement file');
+            return;
+          }
+
+          useAppStore.setState((state) => ({
+            ...state,
+            audio: {
+              ...state.audio,
+              bpm: imported.meta?.bpm ?? state.audio.bpm,
+            },
+            music: {
+              ...state.music,
+              key: (imported.meta?.key as any) ?? state.music.key,
+              mode: (imported.meta?.mode as any) ?? state.music.mode,
+            },
+            sequencer: {
+              ...state.sequencer,
+              patterns: imported.patterns,
+              timeline: imported.timeline,
+            },
+          }));
+
+          alert('✅ Arrangement imported!');
+        } catch (error) {
+          console.error('Failed to import arrangement:', error);
+          alert('❌ Failed to import arrangement');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  };
+
+  const handleExportAudioPrototype = async () => {
+    if (!audioEngine) {
+      return;
+    }
+
+    if (isExportingAudio) {
+      return;
+    }
+
+    try {
+      setIsExportingAudio(true);
+
+      const state = useAppStore.getState();
+      const patternsState = state.sequencer.patterns;
+      const timelineState = state.sequencer.timeline;
+      const bpmState = state.audio.bpm;
+
+      if (!patternsState.length || !timelineState.length) {
+        return;
+      }
+
+      // Delegar a exportação totalmente para o engine, sem mexer em isPlaying/playbackPosition
+      let blob: Blob;
+      if (exportFormat === 'webm' && (audioEngine as any).exportArrangementSilentlyToWebm) {
+        blob = await (audioEngine as any).exportArrangementSilentlyToWebm(
+          patternsState,
+          timelineState,
+          bpmState,
+        );
+      } else {
+        blob = await (audioEngine as any).exportArrangementSilentlyToWav(
+          patternsState,
+          timelineState,
+          bpmState,
+        );
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download =
+        exportFormat === 'webm'
+          ? `webchord_${Date.now()}.webm`
+          : `webchord_${Date.now()}.wav`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Audio export failed:', error);
+    } finally {
+      setIsExportingAudio(false);
+    }
   };
 
   const togglePlayback = () => {
@@ -583,10 +834,17 @@ export default function Timeline({ audioEngine }: TimelineProps) {
   };
 
   return (
-    <div className="bg-slate-800/50 backdrop-blur-md rounded-xl p-6 border border-slate-700">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-white text-xl font-semibold">🎼 Timeline Arranger</h2>
-        <div className="flex gap-2">
+    <div className="relative bg-slate-800/50 backdrop-blur-md rounded-xl p-3 sm:p-4 md:p-6 border border-slate-700">
+      {isExportingAudio && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm cursor-wait">
+          <div className="w-12 h-12 border-4 border-purple-400 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-slate-100 font-semibold mb-1">Exporting audio...</p>
+          <p className="text-slate-300 text-xs">This may take a few seconds. Please wait.</p>
+        </div>
+      )}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+        <h2 className="text-white text-lg sm:text-xl font-semibold">🎼 Timeline Arranger</h2>
+        <div className="flex flex-wrap gap-2 justify-start md:justify-end">
           <button
             onClick={togglePlayback}
             className={`px-4 py-2 rounded-lg font-semibold transition-all ${
@@ -614,9 +872,49 @@ export default function Timeline({ audioEngine }: TimelineProps) {
           >
             🔁 {isLooping ? 'Loop: ON' : 'Loop: OFF'}
           </button>
+          <button
+            onClick={handleExportArrangementJSON}
+            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-all"
+            title="Export current arrangement (patterns + timeline) as JSON"
+          >
+            📤 Export JSON
+          </button>
+          <button
+            onClick={handleImportArrangementJSON}
+            className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-lg font-semibold transition-all"
+            title="Import arrangement (patterns + timeline) from JSON file"
+          >
+            📥 Import JSON
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExportAudioPrototype}
+              className={`px-4 py-2 rounded-lg font-semibold transition-all text-white ${
+                isExportingAudio
+                  ? 'bg-slate-800 cursor-not-allowed opacity-70'
+                  : 'bg-slate-700 hover:bg-slate-600'
+              }`}
+              title="Export current arrangement audio to file"
+              disabled={isExportingAudio}
+            >
+              {isExportingAudio ? '⏳ Exporting...' : '🎧 Export Audio'}
+            </button>
+            <div className="flex items-center gap-1 text-xs text-slate-300">
+              <span className="hidden sm:inline">Format:</span>
+              <select
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value as 'wav' | 'webm')}
+                className="px-2 py-1 bg-slate-800 text-slate-100 rounded-md text-xs font-semibold border border-slate-600 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                title="Choose audio export format for the Export Audio button"
+              >
+                <option value="wav">WAV</option>
+                <option value="webm">WEBM</option>
+              </select>
+            </div>
+          </div>
           
           {/* Timeline Volume Control */}
-          <div className="flex items-center gap-2 ml-4 px-3 py-2 bg-slate-700/50 rounded-lg">
+          <div className="flex items-center gap-2 md:ml-4 px-3 py-2 bg-slate-700/50 rounded-lg mt-2 md:mt-0">
             <span className="text-white text-sm font-semibold">🔊 Timeline:</span>
             <input
               type="range"
@@ -633,7 +931,7 @@ export default function Timeline({ audioEngine }: TimelineProps) {
       </div>
 
       {/* Timeline Controls */}
-      <div className="flex items-center gap-3 mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
+      <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-slate-900/50 rounded-lg border border-slate-700/50">
         <div className="flex items-center gap-2">
           <span className="text-slate-300 text-sm font-semibold">Tracks:</span>
           <button
@@ -689,11 +987,11 @@ export default function Timeline({ audioEngine }: TimelineProps) {
         {/* Step Sequencer (16 steps) - Horizontal Grid */}
 
       {/* Pattern Library - Drag & Drop to Timeline */}
-      <div className="mb-4 bg-slate-900/30 rounded-lg p-4 border border-slate-700/50">
-        <div className="flex items-center gap-2 mb-3">
+      <div className="mb-4 bg-slate-900/30 rounded-lg p-4 border border-slate-700/50 overflow-x-auto">
+        <div className="flex items-center gap-2 mb-3 min-w-max pr-2">
           <span className="text-xl">📚</span>
-          <h3 className="text-white text-sm font-semibold">Pattern Library</h3>
-          <span className="text-slate-400 text-xs">(Drag patterns to timeline tracks)</span>
+          <h3 className="text-white text-sm font-semibold whitespace-nowrap">Pattern Library</h3>
+          <span className="text-slate-400 text-xs whitespace-nowrap">(Drag patterns to timeline tracks)</span>
           
           {/* Preset Selector + Generate Button */}
           <div className="ml-auto flex items-center gap-2">
@@ -766,6 +1064,44 @@ export default function Timeline({ audioEngine }: TimelineProps) {
                     title="Delete pattern"
                   >
                     ×
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const json = exportPatternAsJSON(pattern);
+                      downloadTextFile(json, `webchord-pattern-${pattern.id}.json`, 'application/json');
+                    }}
+                    className="opacity-0 group-hover:opacity-100 ml-1 px-1.5 py-0.5 bg-black/30 rounded hover:bg-black/50 transition-opacity text-xs"
+                    title="Export pattern as JSON"
+                    draggable={false}
+                  >
+                    ⬇
+                  </button>
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!audioEngine || !audioEngine.renderPatternOfflineToWav) {
+                        alert('❌ Offline audio export not available');
+                        return;
+                      }
+                      try {
+                        const blob = await audioEngine.renderPatternOfflineToWav(pattern);
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `webchord-pattern-${pattern.id}.wav`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch (error) {
+                        console.error('Pattern offline export failed:', error);
+                        alert('❌ Failed to export pattern audio');
+                      }
+                    }}
+                    className="opacity-0 group-hover:opacity-100 ml-1 px-1.5 py-0.5 bg-black/30 rounded hover:bg-black/50 transition-opacity text-xs"
+                    title="Export pattern as WAV (offline render)"
+                    draggable={false}
+                  >
+                    🎧
                   </button>
                 </div>
                 <span className="text-xs opacity-75 block mt-1">
